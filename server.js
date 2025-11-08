@@ -1,178 +1,149 @@
-// ========================
-// إعدادات السيرفر الأساسي
-// ========================
-
-const express = require('express');
-const Database = require('better-sqlite3');
-const cors = require('cors');
-const bodyParser = require('body-parser');
-const path = require('path');
+// =============================
+// نظام الحضور باستخدام JSON DB
+// =============================
+const express = require("express");
+const fs = require("fs");
+const path = require("path");
+const cors = require("cors");
+const bodyParser = require("body-parser");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const DB_PATH = process.env.DB_PATH || './attendance.db';
 
-// ========================
-// إعداد القاعدة
-// ========================
-let db;
-try {
-  db = new Database(DB_PATH);
-  console.log(`✅ تم الاتصال بقاعدة البيانات: ${DB_PATH}`);
-} catch (error) {
-  console.error('❌ فشل الاتصال بقاعدة البيانات:', error.message);
-  process.exit(1);
-}
-
-// ========================
-// إنشاء الجداول (إذا لم توجد)
-// ========================
-db.prepare(`
-  CREATE TABLE IF NOT EXISTS teachers (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT UNIQUE NOT NULL,
-    password TEXT NOT NULL,
-    name TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )
-`).run();
-
-db.prepare(`
-  CREATE TABLE IF NOT EXISTS students (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    student_id TEXT UNIQUE NOT NULL,
-    name TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )
-`).run();
-
-db.prepare(`
-  CREATE TABLE IF NOT EXISTS sessions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    code TEXT UNIQUE NOT NULL,
-    subject TEXT NOT NULL,
-    room TEXT NOT NULL,
-    duration INTEGER NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )
-`).run();
-
-db.prepare(`
-  CREATE TABLE IF NOT EXISTS attendance (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    student_id TEXT NOT NULL,
-    session_code TEXT NOT NULL,
-    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-  )
-`).run();
-
-// ========================
-// إعداد الـ Middleware
-// ========================
+// إعداد المجلدات
 app.use(cors());
 app.use(bodyParser.json());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static("public"));
 
-// ========================
-// إنشاء أو تحديث حساب المدير
-// ========================
-try {
-  const admin = db.prepare('SELECT * FROM teachers WHERE username = ?').get('admin');
-  if (!admin) {
-    db.prepare('INSERT INTO teachers (username, password, name) VALUES (?, ?, ?)').run('admin', '102030', 'أ. المدير');
-    console.log('✅ تم إنشاء حساب المدير (admin)');
-  } else {
-    db.prepare('UPDATE teachers SET password = ?, name = ? WHERE username = ?').run('102030', 'أ. المدير', 'admin');
-    console.log('✅ تم تحديث حساب المدير (admin)');
-  }
-} catch (error) {
-  console.error('⚠️ خطأ أثناء إعداد حساب المدير:', error.message);
+const dataDir = path.join(__dirname, "data");
+if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir);
+
+const db = {
+  teachers: path.join(dataDir, "teachers.json"),
+  students: path.join(dataDir, "students.json"),
+  sessions: path.join(dataDir, "sessions.json"),
+  attendance: path.join(dataDir, "attendance.json"),
+};
+
+// دالة مساعدة لتحميل أو حفظ البيانات
+function loadJSON(file) {
+  if (!fs.existsSync(file)) return [];
+  return JSON.parse(fs.readFileSync(file, "utf-8"));
+}
+
+function saveJSON(file, data) {
+  fs.writeFileSync(file, JSON.stringify(data, null, 2));
+}
+
+// إنشاء حساب المدير تلقائيًا
+let teachers = loadJSON(db.teachers);
+if (!teachers.find((t) => t.username === "admin")) {
+  teachers.push({
+    id: 1,
+    username: "admin",
+    password: "102030",
+    name: "أ. المدير",
+    created_at: new Date().toISOString(),
+  });
+  saveJSON(db.teachers, teachers);
+  console.log("✅ تم إنشاء حساب المدير (admin)");
 }
 
 // ========================
-// المسارات الرئيسية
+// تسجيل دخول المعلم
 // ========================
-
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-app.get('/teacher', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'teacher.html'));
-});
-
-app.get('/student', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'student.html'));
-});
-
-// ========================
-// تسجيل دخول المعلمين
-// ========================
-app.post('/api/auth/login', (req, res) => {
+app.post("/api/auth/login", (req, res) => {
   const { username, password } = req.body;
-  if (!username || !password)
-    return res.status(400).json({ success: false, message: 'أدخل اسم المستخدم وكلمة المرور' });
-
-  const teacher = db.prepare('SELECT * FROM teachers WHERE username = ? AND password = ?').get(username, password);
-  if (!teacher) return res.status(401).json({ success: false, message: 'اسم المستخدم أو كلمة المرور غير صحيحة' });
-
-  res.json({ success: true, teacher: { id: teacher.id, name: teacher.name } });
+  const teachers = loadJSON(db.teachers);
+  const user = teachers.find(
+    (t) => t.username === username && t.password === password
+  );
+  if (!user)
+    return res.status(401).json({ success: false, message: "بيانات غير صحيحة" });
+  res.json({ success: true, teacher: { id: user.id, name: user.name } });
 });
 
 // ========================
-// إنشاء جلسة جديدة
+// إنشاء جلسة حضور
 // ========================
-app.post('/api/sessions/create', (req, res) => {
+app.post("/api/sessions/create", (req, res) => {
   const { subject, room, duration } = req.body;
   if (!subject || !room || !duration)
-    return res.status(400).json({ error: 'الرجاء إدخال جميع الحقول المطلوبة' });
+    return res.status(400).json({ error: "الرجاء إدخال جميع البيانات" });
 
-  const code = 'S' + Date.now().toString(36).toUpperCase();
+  const sessions = loadJSON(db.sessions);
+  const code = "S" + Date.now().toString(36).toUpperCase();
+  sessions.push({
+    code,
+    subject,
+    room,
+    duration,
+    created_at: new Date().toISOString(),
+  });
+  saveJSON(db.sessions, sessions);
 
-  try {
-    db.prepare('INSERT INTO sessions (code, subject, room, duration) VALUES (?, ?, ?, ?)').run(code, subject, room, duration);
-    res.json({ message: '✅ تم إنشاء الجلسة بنجاح', code });
-  } catch (error) {
-    console.error('❌ خطأ أثناء إنشاء الجلسة:', error.message);
-    res.status(500).json({ error: 'حدث خطأ أثناء إنشاء الجلسة' });
-  }
+  res.json({ message: "✅ تم إنشاء الجلسة", code });
 });
 
 // ========================
-// عرض نسب الحضور
+// تسجيل حضور طالب
 // ========================
-app.get('/api/attendance/percentages', (req, res) => {
-  try {
-    const totalSessions = db.prepare('SELECT COUNT(*) AS total FROM sessions').get().total;
+app.post("/api/attendance/register", (req, res) => {
+  const { studentId, name, sessionCode } = req.body;
+  if (!studentId || !name || !sessionCode)
+    return res.status(400).json({ error: "بيانات ناقصة" });
 
-    const students = db.prepare(`
-      SELECT s.name, s.student_id, COUNT(a.session_code) AS attended
-      FROM students s
-      LEFT JOIN attendance a ON s.student_id = a.student_id
-      GROUP BY s.student_id
-    `).all();
+  const attendance = loadJSON(db.attendance);
+  const already = attendance.find(
+    (a) => a.studentId === studentId && a.sessionCode === sessionCode
+  );
+  if (already)
+    return res
+      .status(400)
+      .json({ error: "تم تسجيل الحضور مسبقًا لهذه الجلسة" });
 
-    const results = students.map(stu => ({
+  attendance.push({
+    studentId,
+    name,
+    sessionCode,
+    time: new Date().toISOString(),
+  });
+  saveJSON(db.attendance, attendance);
+
+  res.json({ message: "✅ تم تسجيل الحضور بنجاح" });
+});
+
+// ========================
+// حساب نسبة الحضور
+// ========================
+app.get("/api/attendance/percentages", (req, res) => {
+  const students = loadJSON(db.students);
+  const sessions = loadJSON(db.sessions);
+  const attendance = loadJSON(db.attendance);
+
+  const total = sessions.length || 1;
+
+  const result = students.map((stu) => {
+    const attended = attendance.filter((a) => a.studentId === stu.studentId).length;
+    return {
       name: stu.name,
-      student_id: stu.student_id,
-      attended: stu.attended,
-      total: totalSessions,
-      percentage: totalSessions > 0 ? ((stu.attended / totalSessions) * 100).toFixed(1) : 0
-    }));
+      studentId: stu.studentId,
+      attended,
+      total,
+      percentage: ((attended / total) * 100).toFixed(1),
+    };
+  });
 
-    res.json(results);
-  } catch (error) {
-    console.error('⚠️ خطأ في حساب النسب:', error.message);
-    res.status(500).json({ error: 'حدث خطأ أثناء حساب النسب' });
-  }
+  res.json(result);
 });
 
 // ========================
 // تشغيل السيرفر
 // ========================
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
 app.listen(PORT, () => {
-  console.log('===============================');
-  console.log(`✅ السيرفر يعمل على المنفذ ${PORT}`);
-  console.log(`🌐 افتح: http://localhost:${PORT}`);
-  console.log('===============================');
+  console.log("🚀 السيرفر يعمل على المنفذ:", PORT);
 });
