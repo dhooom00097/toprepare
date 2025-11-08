@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>نظام الحضور الإلكتروني</title>
+  <style>
+    * {margin:0;padding:0;box-sizing:border-box}
+    body {
+      font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+      background: linear-gradient(135deg,#667eea,#764ba2);
+      min-height:100vh;display:flex;justify-content:center;align-items:center;padding:20px
+    }
+    .container {background:white;border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,.3);padding:40px;max-width:500px;width:100%;animation:fadeIn .5s ease}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(-20px)}to{opacity:1;transform:translateY(0)}}
+    h1{color:#333;text-align:center;margin-bottom:10px;font-size:2.5em}
+    .subtitle{text-align:center;color:#666;margin-bottom:40px;font-size:1.1em}
+    .role-selection{display:flex;gap:20px;justify-content:center;flex-wrap:wrap}
+    .role-card{background:linear-gradient(135deg,#667eea,#764ba2);color:white;padding:30px;border-radius:15px;cursor:pointer;transition:.3s;text-align:center;flex:1;min-width:180px;text-decoration:none}
+    .role-card:hover{transform:translateY(-10px);box-shadow:0 10px 30px rgba(0,0,0,.3)}
+    .role-card .icon{font-size:3em;margin-bottom:15px}
+    .role-card h2{font-size:1.5em;margin-bottom:10px}
+    .features{margin-top:40px;padding-top:30px;border-top:1px solid #eee}
+    .features h3{text-align:center;margin-bottom:20px;color:#333}
+    .feature-list{list-style:none}
+    .feature-list li{padding:10px;color:#666;display:flex;align-items:center}
+    .feature-list li:before{content:"✓";color:#667eea;font-weight:bold;margin-left:10px;font-size:1.2em}
+    /* Modal styles */
+    .modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.45);z-index:9999}
+    .modal-content{width:360px;background:#fff;border-radius:10px;padding:18px;box-shadow:0 10px 30px rgba(0,0,0,.2);direction:rtl;text-align:right}
+    .close{float:left;font-size:22px;cursor:pointer}
+    .modal-content input{width:100%;padding:8px 10px;margin:6px 0 12px;border-radius:6px;border:1px solid #ddd}
+    .modal-content button{width:100%;padding:10px;background:linear-gradient(90deg,#6b63ff,#9b6bff);color:white;border:none;border-radius:8px;font-weight:600}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>📚 نظام الحضور</h1>
+    <p class="subtitle">نظام إلكتروني لتسجيل الحضور باستخدام QR Code</p>
+    <div class="role-selection">
+      <div id="teacherCard" class="role-card">
+        <div class="icon">👨‍🏫</div>
+        <h2>معلم</h2>
+        <p>إنشاء جلسة حضور وتوليد QR Code</p>
+      </div>
+      <a href="student.html" class="role-card">
+        <div class="icon">👨‍🎓</div>
+        <h2>طالب</h2>
+        <p>مسح الكود وتسجيل الحضور</p>
+      </a>
+    </div>
+    </div>
+  </div>
+
+  <!-- Modal Login -->
+  <div id="loginModal" class="modal">
+    <div class="modal-content">
+      <span id="closeModal" class="close">&times;</span>
+      <h2>دخول المعلم</h2>
+      <form id="loginForm">
+        <label for="username">اسم المستخدم</label>
+        <input id="username" required>
+        <label for="password">كلمة المرور</label>
+        <input id="password" type="password" required>
+        <div id="loginError" style="color:#c00;margin-top:8px;display:none"></div>
+        <button type="submit">دخول</button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    const teacherCard=document.getElementById('teacherCard');
+    teacherCard.addEventListener('click',()=>{
+      document.getElementById('loginModal').style.display='flex';
+      document.getElementById('loginError').style.display='none';
+    });
+    document.getElementById('closeModal').addEventListener('click',()=>{
+      document.getElementById('loginModal').style.display='none';
+    });
+
+    document.getElementById('loginForm').addEventListener('submit',async(ev)=>{
+      ev.preventDefault();
+      const username=document.getElementById('username').value.trim();
+      const password=document.getElementById('password').value;
+      const errDiv=document.getElementById('loginError');
+      errDiv.style.display='none';errDiv.textContent='';
+      try{
+        const res=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,password})});
+        const data=await res.json();
+        if(!res.ok||!data.success){errDiv.style.display='block';errDiv.textContent=data.message||'فشل تسجيل الدخول';return;}
+        document.getElementById('loginModal').style.display='none';
+        localStorage.setItem('teacherName',data.teacher?.name||username);
+        window.location.href='/teacher.html';
+      }catch(err){errDiv.style.display='block';errDiv.textContent='خطأ في الاتصال بالخادم';}
+    });
+
+    window.addEventListener('click',(e)=>{
+      const modal=document.getElementById('loginModal');
+      if(e.target===modal)modal.style.display='none';
+    });
+  </script>
+</body>
+</html>

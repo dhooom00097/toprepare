@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة المعلم - نظام الحضور</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .header {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .header h1 {
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .back-btn {
+            background: #667eea;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 10px;
+            text-decoration: none;
+            transition: all 0.3s;
+        }
+        
+        .back-btn:hover {
+            background: #764ba2;
+        }
+        
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            color: #333;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        
+        input, select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+        
+        input:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+            width: 100%;
+            margin-top: 10px;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, #f56565 0%, #e53e3e 100%);
+        }
+        
+        #qrcode {
+            text-align: center;
+            padding: 20px;
+            background: white;
+            border-radius: 15px;
+            margin-top: 20px;
+        }
+        
+        #qrcode canvas {
+            margin: 0 auto;
+        }
+        
+        .session-info {
+            background: #f7fafc;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+        
+        .session-info h3 {
+            color: #333;
+            margin-bottom: 15px;
+        }
+        
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .info-row:last-child {
+            border-bottom: none;
+        }
+        
+        .attendance-list {
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+        
+        .attendance-item {
+            background: white;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 10px;
+            border-right: 4px solid #48bb78;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .student-name {
+            font-weight: 500;
+            color: #333;
+        }
+        
+        .attendance-time {
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .empty-state {
+            text-align: center;
+            color: #999;
+            padding: 40px;
+        }
+        
+        .timer {
+            background: #667eea;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 10px;
+            text-align: center;
+            font-size: 18px;
+            margin-top: 15px;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        
+        .stat-number {
+            font-size: 2em;
+            font-weight: bold;
+        }
+        
+        .stat-label {
+            font-size: 0.9em;
+            opacity: 0.9;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>👨‍🏫 لوحة المعلم</h1>
+        <a href="index.html" class="back-btn">الرئيسية</a>
+    </div>
+    
+    <div class="main-content">
+        <div class="card">
+            <h2>إنشاء جلسة حضور جديدة</h2>
+            
+            <div class="form-group">
+                <label>اسم المادة:</label>
+                <input type="text" id="subject" placeholder="مثال: رياضيات 101">
+            </div>
+            
+            <div class="form-group">
+                <label>رقم القاعة:</label>
+                <input type="text" id="room" placeholder="مثال: قاعة A-201">
+            </div>
+            
+            <div class="form-group">
+                <label>مدة الجلسة (بالدقائق):</label>
+                <select id="duration">
+                    <option value="15">15 دقيقة</option>
+                    <option value="30">30 دقيقة</option>
+                    <option value="45">45 دقيقة</option>
+                    <option value="60" selected>60 دقيقة</option>
+                    <option value="90">90 دقيقة</option>
+                    <option value="120">120 دقيقة</option>
+                </select>
+            </div>
+            
+            <button class="btn" onclick="generateSession()">توليد كود QR</button>
+            
+            <div id="qrcode"></div>
+            
+            <div class="session-info" id="sessionInfo" style="display: none;">
+                <h3>معلومات الجلسة</h3>
+                <div class="info-row">
+                    <span>رمز الجلسة:</span>
+                    <span id="sessionCode"></span>
+                </div>
+                <div class="info-row">
+                    <span>المادة:</span>
+                    <span id="sessionSubject"></span>
+                </div>
+                <div class="info-row">
+                    <span>القاعة:</span>
+                    <span id="sessionRoom"></span>
+                </div>
+                <div class="timer" id="timer"></div>
+                <button class="btn btn-danger" onclick="endSession()">إنهاء الجلسة</button>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>📊 الحضور المباشر</h2>
+            
+            <div class="stats">
+                <div class="stat-card">
+                    <div class="stat-number" id="presentCount">0</div>
+                    <div class="stat-label">حضور</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="totalCount">0</div>
+                    <div class="stat-label">إجمالي الطلاب</div>
+                </div>
+            </div>
+            
+            <div class="attendance-list" id="attendanceList">
+                <div class="empty-state">
+                    لم يتم تسجيل أي حضور بعد
+                </div>
+            </div>
+            
+            <button class="btn" onclick="exportAttendance()" style="margin-top: 20px;">
+                تصدير كشف الحضور 📥
+            </button>
+        </div>
+    </div>
+
+    <script>
+        let currentSession = null;
+        let qrCodeInstance = null;
+        let timerInterval = null;
+
+        function generateSessionCode() {
+            return 'S' + Date.now().toString(36).toUpperCase();
+        }
+
+        function generateSession() {
+            const subject = document.getElementById('subject').value;
+            const room = document.getElementById('room').value;
+            const duration = document.getElementById('duration').value;
+
+            if (!subject || !room) {
+                alert('الرجاء إدخال اسم المادة ورقم القاعة');
+                return;
+            }
+
+            // إنشاء جلسة جديدة
+            const sessionCode = generateSessionCode();
+            currentSession = {
+                code: sessionCode,
+                subject: subject,
+                room: room,
+                duration: parseInt(duration),
+                startTime: new Date(),
+                endTime: new Date(Date.now() + duration * 60000),
+                attendance: []
+            };
+
+            // حفظ الجلسة
+            localStorage.setItem('currentSession', JSON.stringify(currentSession));
+
+            // توليد QR Code
+            const qrData = {
+                sessionCode: sessionCode,
+                subject: subject,
+                room: room
+            };
+
+            const qrContainer = document.getElementById('qrcode');
+            qrContainer.innerHTML = '';
+            
+            qrCodeInstance = new QRCode(qrContainer, {
+                text: JSON.stringify(qrData),
+                width: 256,
+                height: 256,
+                colorDark: "#333333",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.H
+            });
+
+            // عرض معلومات الجلسة
+            document.getElementById('sessionInfo').style.display = 'block';
+            document.getElementById('sessionCode').textContent = sessionCode;
+            document.getElementById('sessionSubject').textContent = subject;
+            document.getElementById('sessionRoom').textContent = room;
+
+            // بدء العداد التنازلي
+            startTimer();
+            
+            // بدء مراقبة الحضور
+            startAttendanceMonitoring();
+        }
+
+        function startTimer() {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+            }
+
+            timerInterval = setInterval(() => {
+                if (!currentSession) return;
+
+                const now = new Date();
+                const remaining = currentSession.endTime - now;
+
+                if (remaining <= 0) {
+                    endSession();
+                    return;
+                }
+
+                const minutes = Math.floor(remaining / 60000);
+                const seconds = Math.floor((remaining % 60000) / 1000);
+
+                document.getElementById('timer').textContent = 
+                    `الوقت المتبقي: ${minutes}:${seconds.toString().padStart(2, '0')}`;
+            }, 1000);
+        }
+
+        function startAttendanceMonitoring() {
+            // محاكاة تحديث الحضور (في الواقع ستكون من قاعدة بيانات)
+            setInterval(() => {
+                if (!currentSession) return;
+
+                // جلب الحضور من التخزين المحلي
+                const storedAttendance = localStorage.getItem('attendance_' + currentSession.code);
+                if (storedAttendance) {
+                    const attendance = JSON.parse(storedAttendance);
+                    updateAttendanceDisplay(attendance);
+                }
+            }, 2000);
+        }
+
+        function updateAttendanceDisplay(attendance) {
+            const list = document.getElementById('attendanceList');
+            const presentCount = document.getElementById('presentCount');
+            
+            presentCount.textContent = attendance.length;
+            
+            if (attendance.length === 0) {
+                list.innerHTML = '<div class="empty-state">لم يتم تسجيل أي حضور بعد</div>';
+                return;
+            }
+
+            list.innerHTML = attendance.map(student => `
+                <div class="attendance-item">
+                    <div>
+                        <div class="student-name">${student.name}</div>
+                        <div class="attendance-time">
+                            ${new Date(student.time).toLocaleTimeString('ar-SA')}
+                        </div>
+                    </div>
+                    <div style="color: #48bb78;">✓</div>
+                </div>
+            `).join('');
+        }
+
+        function endSession() {
+            if (!currentSession) return;
+
+            if (confirm('هل أنت متأكد من إنهاء الجلسة؟')) {
+                // حفظ الجلسة في السجل
+                const sessions = JSON.parse(localStorage.getItem('sessions') || '[]');
+                sessions.push(currentSession);
+                localStorage.setItem('sessions', JSON.stringify(sessions));
+
+                // مسح الجلسة الحالية
+                localStorage.removeItem('currentSession');
+                localStorage.removeItem('attendance_' + currentSession.code);
+
+                currentSession = null;
+                if (timerInterval) {
+                    clearInterval(timerInterval);
+                }
+
+                // إعادة تعيين الواجهة
+                document.getElementById('qrcode').innerHTML = '';
+                document.getElementById('sessionInfo').style.display = 'none';
+                document.getElementById('attendanceList').innerHTML = 
+                    '<div class="empty-state">لم يتم تسجيل أي حضور بعد</div>';
+                document.getElementById('presentCount').textContent = '0';
+                
+                alert('تم إنهاء الجلسة بنجاح');
+            }
+        }
+
+        function exportAttendance() {
+            if (!currentSession) {
+                alert('لا توجد جلسة نشطة');
+                return;
+            }
+
+            const storedAttendance = localStorage.getItem('attendance_' + currentSession.code);
+            const attendance = storedAttendance ? JSON.parse(storedAttendance) : [];
+
+            let csv = 'الاسم,رقم الطالب,وقت الحضور\n';
+            attendance.forEach(student => {
+                csv += `${student.name},${student.studentId},${new Date(student.time).toLocaleString('ar-SA')}\n`;
+            });
+
+            const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `attendance_${currentSession.subject}_${new Date().toLocaleDateString('ar-SA')}.csv`;
+            link.click();
+        }
+
+        // تحميل الجلسة النشطة إن وجدت
+        window.onload = function() {
+            const savedSession = localStorage.getItem('currentSession');
+            if (savedSession) {
+                currentSession = JSON.parse(savedSession);
+                currentSession.startTime = new Date(currentSession.startTime);
+                currentSession.endTime = new Date(currentSession.endTime);
+                
+                // إعادة عرض معلومات الجلسة
+                document.getElementById('sessionInfo').style.display = 'block';
+                document.getElementById('sessionCode').textContent = currentSession.code;
+                document.getElementById('sessionSubject').textContent = currentSession.subject;
+                document.getElementById('sessionRoom').textContent = currentSession.room;
+                
+                // إعادة توليد QR Code
+                const qrData = {
+                    sessionCode: currentSession.code,
+                    subject: currentSession.subject,
+                    room: currentSession.room
+                };
+
+                const qrContainer = document.getElementById('qrcode');
+                qrCodeInstance = new QRCode(qrContainer, {
+                    text: JSON.stringify(qrData),
+                    width: 256,
+                    height: 256,
+                    colorDark: "#333333",
+                    colorLight: "#ffffff",
+                    correctLevel: QRCode.CorrectLevel.H
+                });
+                
+                startTimer();
+                startAttendanceMonitoring();
+            }
+        }
+    </script>
+</body>
+</html>
