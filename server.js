@@ -3,94 +3,91 @@
 // ========================
 
 const express = require('express');
-const sqlite3 = require('sqlite3').verbose();
+const Database = require('better-sqlite3');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const path = require('path');
-const { v4: uuidv4 } = require('uuid');
 
 const app = express();
-const PORT = 3000;
-
-app.use(cors());
-app.use(bodyParser.json());
-app.use(express.static(path.join(__dirname, 'public')));
+const PORT = process.env.PORT || 3000;
+const DB_PATH = process.env.DB_PATH || './attendance.db';
 
 // ========================
-// قاعدة البيانات
+// إعداد القاعدة
 // ========================
+let db;
+try {
+  db = new Database(DB_PATH);
+  console.log(`✅ تم الاتصال بقاعدة البيانات: ${DB_PATH}`);
+} catch (error) {
+  console.error('❌ فشل الاتصال بقاعدة البيانات:', error.message);
+  process.exit(1);
+}
 
-const db = new sqlite3.Database('./attendance.db', (err) => {
-  if (err) console.error('❌ فشل الاتصال بقاعدة البيانات:', err.message);
-  else console.log('✅ تم الاتصال بقاعدة البيانات بنجاح.');
-});
-
-// إنشاء الجداول
-db.serialize(() => {
-  db.run(`CREATE TABLE IF NOT EXISTS teachers (
+// ========================
+// إنشاء الجداول (إذا لم توجد)
+// ========================
+db.prepare(`
+  CREATE TABLE IF NOT EXISTS teachers (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT UNIQUE NOT NULL,
     password TEXT NOT NULL,
     name TEXT NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )`);
+  )
+`).run();
 
-  db.run(`CREATE TABLE IF NOT EXISTS students (
+db.prepare(`
+  CREATE TABLE IF NOT EXISTS students (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     student_id TEXT UNIQUE NOT NULL,
     name TEXT NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )`);
+  )
+`).run();
 
-  db.run(`CREATE TABLE IF NOT EXISTS sessions (
+db.prepare(`
+  CREATE TABLE IF NOT EXISTS sessions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     code TEXT UNIQUE NOT NULL,
     subject TEXT NOT NULL,
     room TEXT NOT NULL,
     duration INTEGER NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )`);
+  )
+`).run();
 
-  db.run(`CREATE TABLE IF NOT EXISTS attendance (
+db.prepare(`
+  CREATE TABLE IF NOT EXISTS attendance (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     student_id TEXT NOT NULL,
     session_code TEXT NOT NULL,
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-  )`);
-});
+  )
+`).run();
 
 // ========================
-// ✅ إضافة أو تحديث حساب المدير تلقائيًا
+// إعداد الـ Middleware
 // ========================
+app.use(cors());
+app.use(bodyParser.json());
+app.use(express.static(path.join(__dirname, 'public')));
 
-db.get(`SELECT * FROM teachers WHERE username = ?`, ['admin'], (err, row) => {
-  if (err) {
-    console.error('❌ خطأ أثناء فحص حساب المدير:', err.message);
-    return;
-  }
-
-  if (!row) {
-    // إذا ما فيه مدير، نضيفه
-    db.run(
-      `INSERT INTO teachers (username, password, name) VALUES (?, ?, ?)`,
-      ['admin', '102030', 'أ. المدير'],
-      (err) => {
-        if (err) console.error('⚠️ فشل إضافة حساب المدير:', err.message);
-        else console.log('✅ تم إنشاء حساب المدير (admin) بنجاح');
-      }
-    );
+// ========================
+// إنشاء أو تحديث حساب المدير
+// ========================
+try {
+  const admin = db.prepare('SELECT * FROM teachers WHERE username = ?').get('admin');
+  if (!admin) {
+    db.prepare('INSERT INTO teachers (username, password, name) VALUES (?, ?, ?)').run('admin', '102030', 'أ. المدير');
+    console.log('✅ تم إنشاء حساب المدير (admin)');
   } else {
-    // إذا موجود، نحدث كلمة السر والاسم
-    db.run(
-      `UPDATE teachers SET password = ?, name = ? WHERE username = ?`,
-      ['102030', 'أ. المدير', 'admin'],
-      (err) => {
-        if (err) console.error('⚠️ فشل تحديث حساب المدير:', err.message);
-        else console.log('✅ تم تحديث حساب المدير (admin)');
-      }
-    );
+    db.prepare('UPDATE teachers SET password = ?, name = ? WHERE username = ?').run('102030', 'أ. المدير', 'admin');
+    console.log('✅ تم تحديث حساب المدير (admin)');
   }
-});
+} catch (error) {
+  console.error('⚠️ خطأ أثناء إعداد حساب المدير:', error.message);
+}
 
 // ========================
 // المسارات الرئيسية
@@ -109,93 +106,73 @@ app.get('/student', (req, res) => {
 });
 
 // ========================
-// تسجيل الدخول للمعلمين
+// تسجيل دخول المعلمين
 // ========================
-
 app.post('/api/auth/login', (req, res) => {
   const { username, password } = req.body;
-
   if (!username || !password)
     return res.status(400).json({ success: false, message: 'أدخل اسم المستخدم وكلمة المرور' });
 
-  db.get(`SELECT * FROM teachers WHERE username = ? AND password = ?`, [username, password], (err, row) => {
-    if (err) {
-      console.error('DB error:', err.message);
-      return res.status(500).json({ success: false, message: 'خطأ في الخادم' });
-    }
+  const teacher = db.prepare('SELECT * FROM teachers WHERE username = ? AND password = ?').get(username, password);
+  if (!teacher) return res.status(401).json({ success: false, message: 'اسم المستخدم أو كلمة المرور غير صحيحة' });
 
-    if (!row)
-      return res.status(401).json({ success: false, message: 'اسم المستخدم أو كلمة المرور غير صحيحة' });
-
-    res.json({ success: true, message: 'تم الدخول بنجاح', teacher: { id: row.id, name: row.name } });
-  });
+  res.json({ success: true, teacher: { id: teacher.id, name: teacher.name } });
 });
 
 // ========================
 // إنشاء جلسة جديدة
 // ========================
-
 app.post('/api/sessions/create', (req, res) => {
   const { subject, room, duration } = req.body;
-
   if (!subject || !room || !duration)
     return res.status(400).json({ error: 'الرجاء إدخال جميع الحقول المطلوبة' });
 
   const code = 'S' + Date.now().toString(36).toUpperCase();
 
-  db.run(
-    `INSERT INTO sessions (code, subject, room, duration) VALUES (?, ?, ?, ?)`,
-    [code, subject, room, duration],
-    function (err) {
-      if (err) {
-        console.error('❌ خطأ في إنشاء الجلسة:', err.message);
-        return res.status(500).json({ error: 'حدث خطأ أثناء إنشاء الجلسة' });
-      }
-      res.json({ message: '✅ تم إنشاء الجلسة بنجاح', code });
-    }
-  );
+  try {
+    db.prepare('INSERT INTO sessions (code, subject, room, duration) VALUES (?, ?, ?, ?)').run(code, subject, room, duration);
+    res.json({ message: '✅ تم إنشاء الجلسة بنجاح', code });
+  } catch (error) {
+    console.error('❌ خطأ أثناء إنشاء الجلسة:', error.message);
+    res.status(500).json({ error: 'حدث خطأ أثناء إنشاء الجلسة' });
+  }
 });
 
 // ========================
-// تسجيل الحضور للطلاب
+// عرض نسب الحضور
 // ========================
+app.get('/api/attendance/percentages', (req, res) => {
+  try {
+    const totalSessions = db.prepare('SELECT COUNT(*) AS total FROM sessions').get().total;
 
-app.post('/api/attendance', (req, res) => {
-  const { student_id, session_code } = req.body;
+    const students = db.prepare(`
+      SELECT s.name, s.student_id, COUNT(a.session_code) AS attended
+      FROM students s
+      LEFT JOIN attendance a ON s.student_id = a.student_id
+      GROUP BY s.student_id
+    `).all();
 
-  if (!student_id || !session_code)
-    return res.status(400).json({ error: 'بيانات ناقصة' });
+    const results = students.map(stu => ({
+      name: stu.name,
+      student_id: stu.student_id,
+      attended: stu.attended,
+      total: totalSessions,
+      percentage: totalSessions > 0 ? ((stu.attended / totalSessions) * 100).toFixed(1) : 0
+    }));
 
-  db.run(
-    `INSERT INTO attendance (student_id, session_code) VALUES (?, ?)`,
-    [student_id, session_code],
-    function (err) {
-      if (err) {
-        console.error('❌ خطأ أثناء تسجيل الحضور:', err.message);
-        return res.status(500).json({ error: 'فشل تسجيل الحضور' });
-      }
-      res.json({ message: '✅ تم تسجيل الحضور بنجاح' });
-    }
-  );
+    res.json(results);
+  } catch (error) {
+    console.error('⚠️ خطأ في حساب النسب:', error.message);
+    res.status(500).json({ error: 'حدث خطأ أثناء حساب النسب' });
+  }
 });
 
 // ========================
 // تشغيل السيرفر
 // ========================
-
 app.listen(PORT, () => {
   console.log('===============================');
   console.log(`✅ السيرفر يعمل على المنفذ ${PORT}`);
-  console.log(`🌐 http://localhost:${PORT}`);
+  console.log(`🌐 افتح: http://localhost:${PORT}`);
   console.log('===============================');
-});
-
-// التعامل مع إيقاف السيرفر
-process.on('SIGINT', () => {
-  console.log('\\n🔴 إيقاف السيرفر...');
-  db.close((err) => {
-    if (err) console.error(err.message);
-    console.log('🟢 تم إغلاق قاعدة البيانات بنجاح');
-    process.exit(0);
-  });
 });
