@@ -348,16 +348,14 @@
             const qrContainer = document.getElementById('qrcode');
             qrContainer.innerHTML = '';
             
-            // ✅ توليد QR يحتوي فقط رمز الجلسة الحقيقي
-qrCodeInstance = new QRCode(qrContainer, {
-  text: sessionCode, // ← هنا صار يرسل الرمز فقط مثل SABC1234
-  width: 256,
-  height: 256,
-  colorDark: "#333333",
-  colorLight: "#ffffff",
-  correctLevel: QRCode.CorrectLevel.H
-});
-
+            qrCodeInstance = new QRCode(qrContainer, {
+                text: JSON.stringify(qrData),
+                width: 256,
+                height: 256,
+                colorDark: "#333333",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.H
+            });
 
             // عرض معلومات الجلسة
             document.getElementById('sessionInfo').style.display = 'block';
