@@ -1,153 +1,149 @@
-const express = require('express');
-const sqlite3 = require('sqlite3').verbose();
-const cors = require('cors');
-const bodyParser = require('body-parser');
-const path = require('path');
-const { v4: uuidv4 } = require('uuid');
+// =============================
+// نظام الحضور باستخدام JSON DB
+// =============================
+const express = require("express");
+const fs = require("fs");
+const path = require("path");
+const cors = require("cors");
+const bodyParser = require("body-parser");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
+// إعداد المجلدات
 app.use(cors());
 app.use(bodyParser.json());
-app.use(express.static('public'));
+app.use(express.static("public"));
 
-// إنشاء قاعدة البيانات
-const db = new sqlite3.Database('./attendance.db');
+const dataDir = path.join(__dirname, "data");
+if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir);
 
-// إنشاء الجداول
-db.serialize(() => {
-  db.run(`CREATE TABLE IF NOT EXISTS teachers (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      username TEXT UNIQUE NOT NULL,
-      password TEXT NOT NULL,
-      name TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )`);
+const db = {
+  teachers: path.join(dataDir, "teachers.json"),
+  students: path.join(dataDir, "students.json"),
+  sessions: path.join(dataDir, "sessions.json"),
+  attendance: path.join(dataDir, "attendance.json"),
+};
 
-  db.run(`CREATE TABLE IF NOT EXISTS sessions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      session_code TEXT UNIQUE NOT NULL,
-      subject TEXT NOT NULL,
-      room TEXT NOT NULL,
-      duration INTEGER NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )`);
+// دالة مساعدة لتحميل أو حفظ البيانات
+function loadJSON(file) {
+  if (!fs.existsSync(file)) return [];
+  return JSON.parse(fs.readFileSync(file, "utf-8"));
+}
 
-  db.run(`CREATE TABLE IF NOT EXISTS attendance (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      student_name TEXT NOT NULL,
-      student_id TEXT NOT NULL,
-      session_code TEXT NOT NULL,
-      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-  )`);
-});
+function saveJSON(file, data) {
+  fs.writeFileSync(file, JSON.stringify(data, null, 2));
+}
 
-// ✅ تسجيل دخول المعلم
-app.post('/api/login', (req, res) => {
+// إنشاء حساب المدير تلقائيًا
+let teachers = loadJSON(db.teachers);
+if (!teachers.find((t) => t.username === "admin")) {
+  teachers.push({
+    id: 1,
+    username: "admin",
+    password: "102030",
+    name: "أ. المدير",
+    created_at: new Date().toISOString(),
+  });
+  saveJSON(db.teachers, teachers);
+  console.log("✅ تم إنشاء حساب المدير (admin)");
+}
+
+// ========================
+// تسجيل دخول المعلم
+// ========================
+app.post("/api/auth/login", (req, res) => {
   const { username, password } = req.body;
-  if (username === 'admin' && password === '102030') {
-    return res.json({ success: true, name: 'الأستاذ الإداري' });
-  }
-  return res.status(401).json({ success: false, message: 'اسم المستخدم أو كلمة المرور غير صحيحة' });
-});
-
-// ✅ إنشاء جلسة جديدة
-app.post('/api/session', (req, res) => {
-  const { subject, room, duration } = req.body;
-  const sessionCode = uuidv4().slice(0, 8).toUpperCase();
-  const createdAt = new Date().toISOString(); // وقت موحد UTC
-
-  db.run(
-    `INSERT INTO sessions (session_code, subject, room, duration, created_at)
-     VALUES (?, ?, ?, ?, ?)`,
-    [sessionCode, subject, room, duration, createdAt],
-    (err) => {
-      if (err) {
-        console.error('خطأ أثناء إنشاء الجلسة:', err);
-        return res.status(500).json({ success: false, message: 'حدث خطأ أثناء إنشاء الجلسة' });
-      }
-      res.json({ success: true, sessionCode });
-    }
+  const teachers = loadJSON(db.teachers);
+  const user = teachers.find(
+    (t) => t.username === username && t.password === password
   );
+  if (!user)
+    return res.status(401).json({ success: false, message: "بيانات غير صحيحة" });
+  res.json({ success: true, teacher: { id: user.id, name: user.name } });
 });
 
-// ✅ التحقق من الجلسة وتسجيل الحضور
-app.post('/api/attendance', (req, res) => {
-  const { studentName, studentId, sessionCode } = req.body;
+// ========================
+// إنشاء جلسة حضور
+// ========================
+app.post("/api/sessions/create", (req, res) => {
+  const { subject, room, duration } = req.body;
+  if (!subject || !room || !duration)
+    return res.status(400).json({ error: "الرجاء إدخال جميع البيانات" });
 
-  db.get(`SELECT * FROM sessions WHERE session_code = ?`, [sessionCode], (err, session) => {
-    if (err) {
-      console.error('خطأ أثناء البحث عن الجلسة:', err);
-      return res.status(500).json({ success: false, message: 'حدث خطأ داخلي' });
-    }
-
-    if (!session) {
-      return res.status(400).json({ success: false, message: '⚠️ الجلسة غير موجودة' });
-    }
-
-    const createdAt = new Date(session.created_at);
-    const now = new Date();
-
-    // نحسب مدة الجلسة ونقارن بالتوقيت العالمي UTC
-    const endTime = new Date(createdAt.getTime() + session.duration * 60 * 1000);
-    if (now.getTime() > endTime.getTime()) {
-      return res.status(400).json({ success: false, message: '⚠️ الجلسة غير موجودة أو منتهية' });
-    }
-
-    // التحقق إذا الطالب سجل مسبقًا
-    db.get(
-      `SELECT * FROM attendance WHERE student_id = ? AND session_code = ?`,
-      [studentId, sessionCode],
-      (err, existing) => {
-        if (existing) {
-          return res.status(400).json({ success: false, message: '✅ تم تسجيل حضورك مسبقًا' });
-        }
-
-        // تسجيل الحضور
-        db.run(
-          `INSERT INTO attendance (student_name, student_id, session_code)
-           VALUES (?, ?, ?)`,
-          [studentName, studentId, sessionCode],
-          (err) => {
-            if (err) {
-              console.error('خطأ أثناء تسجيل الحضور:', err);
-              return res.status(500).json({ success: false, message: 'حدث خطأ أثناء التسجيل' });
-            }
-
-            res.json({
-              success: true,
-              subject: session.subject,
-              room: session.room,
-              time: new Date().toLocaleString('ar-SA', { timeZone: 'Asia/Riyadh' }),
-            });
-          }
-        );
-      }
-    );
+  const sessions = loadJSON(db.sessions);
+  const code = "S" + Date.now().toString(36).toUpperCase();
+  sessions.push({
+    code,
+    subject,
+    room,
+    duration,
+    created_at: new Date().toISOString(),
   });
+  saveJSON(db.sessions, sessions);
+
+  res.json({ message: "✅ تم إنشاء الجلسة", code });
 });
 
-// ✅ عرض نسب الحضور الإجمالية
-app.get('/api/attendance-summary', (req, res) => {
-  const query = `
-    SELECT student_name,
-           student_id,
-           COUNT(DISTINCT session_code) AS attendance_count
-    FROM attendance
-    GROUP BY student_id
-  `;
-  db.all(query, [], (err, rows) => {
-    if (err) {
-      console.error('خطأ أثناء جلب التقرير:', err);
-      return res.status(500).json({ success: false });
-    }
-    res.json(rows);
+// ========================
+// تسجيل حضور طالب
+// ========================
+app.post("/api/attendance/register", (req, res) => {
+  const { studentId, name, sessionCode } = req.body;
+  if (!studentId || !name || !sessionCode)
+    return res.status(400).json({ error: "بيانات ناقصة" });
+
+  const attendance = loadJSON(db.attendance);
+  const already = attendance.find(
+    (a) => a.studentId === studentId && a.sessionCode === sessionCode
+  );
+  if (already)
+    return res
+      .status(400)
+      .json({ error: "تم تسجيل الحضور مسبقًا لهذه الجلسة" });
+
+  attendance.push({
+    studentId,
+    name,
+    sessionCode,
+    time: new Date().toISOString(),
   });
+  saveJSON(db.attendance, attendance);
+
+  res.json({ message: "✅ تم تسجيل الحضور بنجاح" });
 });
 
-// ✅ بدء السيرفر
+// ========================
+// حساب نسبة الحضور
+// ========================
+app.get("/api/attendance/percentages", (req, res) => {
+  const students = loadJSON(db.students);
+  const sessions = loadJSON(db.sessions);
+  const attendance = loadJSON(db.attendance);
+
+  const total = sessions.length || 1;
+
+  const result = students.map((stu) => {
+    const attended = attendance.filter((a) => a.studentId === stu.studentId).length;
+    return {
+      name: stu.name,
+      studentId: stu.studentId,
+      attended,
+      total,
+      percentage: ((attended / total) * 100).toFixed(1),
+    };
+  });
+
+  res.json(result);
+});
+
+// ========================
+// تشغيل السيرفر
+// ========================
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+  console.log("🚀 السيرفر يعمل على المنفذ:", PORT);
 });
