@@ -73,16 +73,57 @@ app.post("/api/sessions/create", (req, res) => {
 
   const sessions = loadJSON(db.sessions);
   const code = "S" + Date.now().toString(36).toUpperCase();
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + duration * 60000); // تحويل الدقائق إلى ميلي ثانية
+  
   sessions.push({
     code,
     subject,
     room,
     duration,
-    created_at: new Date().toISOString(),
+    created_at: now.toISOString(),
+    expires_at: expiresAt.toISOString(),
+    is_active: true
   });
   saveJSON(db.sessions, sessions);
 
   res.json({ message: "✅ تم إنشاء الجلسة", code });
+});
+
+// ========================
+// التحقق من صلاحية الجلسة
+// ========================
+app.get("/api/sessions/check/:code", (req, res) => {
+  const { code } = req.params;
+  const sessions = loadJSON(db.sessions);
+  const session = sessions.find(s => s.code === code);
+  
+  if (!session) {
+    return res.status(404).json({ valid: false, message: "الجلسة غير موجودة" });
+  }
+  
+  const now = new Date();
+  const expiresAt = new Date(session.expires_at || session.created_at);
+  
+  // إذا لم يكن هناك expires_at، نحسبه من created_at + duration
+  if (!session.expires_at && session.duration) {
+    const createdAt = new Date(session.created_at);
+    expiresAt.setTime(createdAt.getTime() + session.duration * 60000);
+  }
+  
+  if (now > expiresAt) {
+    return res.json({ valid: false, message: "انتهت صلاحية الجلسة" });
+  }
+  
+  res.json({ 
+    valid: true, 
+    session: {
+      code: session.code,
+      subject: session.subject,
+      room: session.room,
+      expires_at: expiresAt.toISOString()
+    }
+  });
 });
 
 // ========================
@@ -93,6 +134,29 @@ app.post("/api/attendance/register", (req, res) => {
   if (!studentId || !name || !sessionCode)
     return res.status(400).json({ error: "بيانات ناقصة" });
 
+  // التحقق من وجود الجلسة وصلاحيتها
+  const sessions = loadJSON(db.sessions);
+  const session = sessions.find(s => s.code === sessionCode);
+  
+  if (!session) {
+    return res.status(404).json({ error: "الجلسة غير موجودة أو منتهية" });
+  }
+  
+  // التحقق من صلاحية الجلسة
+  const now = new Date();
+  let expiresAt = new Date(session.expires_at || session.created_at);
+  
+  // إذا لم يكن هناك expires_at، نحسبه من created_at + duration
+  if (!session.expires_at && session.duration) {
+    const createdAt = new Date(session.created_at);
+    expiresAt = new Date(createdAt.getTime() + session.duration * 60000);
+  }
+  
+  if (now > expiresAt) {
+    return res.status(400).json({ error: "الجلسة غير موجودة أو منتهية" });
+  }
+
+  // التحقق من عدم تسجيل الحضور مسبقاً
   const attendance = loadJSON(db.attendance);
   const already = attendance.find(
     (a) => a.studentId === studentId && a.sessionCode === sessionCode
@@ -102,6 +166,18 @@ app.post("/api/attendance/register", (req, res) => {
       .status(400)
       .json({ error: "تم تسجيل الحضور مسبقًا لهذه الجلسة" });
 
+  // حفظ الطالب إذا لم يكن موجوداً
+  const students = loadJSON(db.students);
+  if (!students.find(s => s.studentId === studentId)) {
+    students.push({
+      studentId,
+      name,
+      created_at: new Date().toISOString()
+    });
+    saveJSON(db.students, students);
+  }
+
+  // تسجيل الحضور
   attendance.push({
     studentId,
     name,
@@ -135,6 +211,46 @@ app.get("/api/attendance/percentages", (req, res) => {
   });
 
   res.json(result);
+});
+
+// ========================
+// عرض الجلسات النشطة
+// ========================
+app.get("/api/sessions/active", (req, res) => {
+  const sessions = loadJSON(db.sessions);
+  const now = new Date();
+  
+  const activeSessions = sessions.filter(session => {
+    let expiresAt = new Date(session.expires_at || session.created_at);
+    
+    if (!session.expires_at && session.duration) {
+      const createdAt = new Date(session.created_at);
+      expiresAt = new Date(createdAt.getTime() + session.duration * 60000);
+    }
+    
+    return now <= expiresAt;
+  });
+  
+  res.json(activeSessions);
+});
+
+// ========================
+// إنهاء جلسة يدوياً
+// ========================
+app.post("/api/sessions/end/:code", (req, res) => {
+  const { code } = req.params;
+  const sessions = loadJSON(db.sessions);
+  const sessionIndex = sessions.findIndex(s => s.code === code);
+  
+  if (sessionIndex === -1) {
+    return res.status(404).json({ error: "الجلسة غير موجودة" });
+  }
+  
+  sessions[sessionIndex].is_active = false;
+  sessions[sessionIndex].ended_at = new Date().toISOString();
+  saveJSON(db.sessions, sessions);
+  
+  res.json({ message: "✅ تم إنهاء الجلسة" });
 });
 
 // ========================
