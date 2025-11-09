@@ -96,19 +96,30 @@ app.post("/api/sessions/create", (req, res) => {
 app.get("/api/sessions/check/:code", (req, res) => {
   const { code } = req.params;
   const sessions = loadJSON(db.sessions);
-  const session = sessions.find(s => s.code === code);
+  const session = sessions.find(s => s.code === code.toUpperCase());
   
   if (!session) {
     return res.status(404).json({ valid: false, message: "الجلسة غير موجودة" });
   }
   
   const now = new Date();
-  const expiresAt = new Date(session.expires_at || session.created_at);
+  let expiresAt;
   
-  // إذا لم يكن هناك expires_at، نحسبه من created_at + duration
-  if (!session.expires_at && session.duration) {
+  // التحقق من وجود expires_at أو حسابه من created_at + duration
+  if (session.expires_at) {
+    expiresAt = new Date(session.expires_at);
+  } else if (session.duration) {
     const createdAt = new Date(session.created_at);
-    expiresAt.setTime(createdAt.getTime() + session.duration * 60000);
+    expiresAt = new Date(createdAt.getTime() + session.duration * 60000);
+  } else {
+    // إذا لم يكن هناك duration، نعتبر الجلسة صالحة لمدة 60 دقيقة افتراضياً
+    const createdAt = new Date(session.created_at);
+    expiresAt = new Date(createdAt.getTime() + 60 * 60000);
+  }
+  
+  // التحقق من انتهاء الجلسة
+  if (session.is_active === false || session.ended_at) {
+    return res.json({ valid: false, message: "تم إنهاء الجلسة" });
   }
   
   if (now > expiresAt) {
@@ -121,7 +132,8 @@ app.get("/api/sessions/check/:code", (req, res) => {
       code: session.code,
       subject: session.subject,
       room: session.room,
-      expires_at: expiresAt.toISOString()
+      expires_at: expiresAt.toISOString(),
+      remaining_minutes: Math.floor((expiresAt - now) / 60000)
     }
   });
 });
@@ -131,40 +143,60 @@ app.get("/api/sessions/check/:code", (req, res) => {
 // ========================
 app.post("/api/attendance/register", (req, res) => {
   const { studentId, name, sessionCode } = req.body;
-  if (!studentId || !name || !sessionCode)
+  
+  // التحقق من البيانات المطلوبة
+  if (!studentId || !name || !sessionCode) {
     return res.status(400).json({ error: "بيانات ناقصة" });
-
-  // التحقق من وجود الجلسة وصلاحيتها
+  }
+  
+  // تحويل رمز الجلسة إلى أحرف كبيرة
+  const normalizedCode = sessionCode.toUpperCase();
+  
+  // التحقق من وجود الجلسة
   const sessions = loadJSON(db.sessions);
-  const session = sessions.find(s => s.code === sessionCode);
+  const session = sessions.find(s => s.code === normalizedCode);
   
   if (!session) {
+    console.log(`Session not found: ${normalizedCode}`);
+    console.log('Available sessions:', sessions.map(s => s.code));
     return res.status(404).json({ error: "الجلسة غير موجودة أو منتهية" });
+  }
+  
+  // التحقق من حالة الجلسة
+  if (session.is_active === false || session.ended_at) {
+    return res.status(400).json({ error: "تم إنهاء الجلسة" });
   }
   
   // التحقق من صلاحية الجلسة
   const now = new Date();
-  let expiresAt = new Date(session.expires_at || session.created_at);
+  let expiresAt;
   
-  // إذا لم يكن هناك expires_at، نحسبه من created_at + duration
-  if (!session.expires_at && session.duration) {
+  if (session.expires_at) {
+    expiresAt = new Date(session.expires_at);
+  } else if (session.duration) {
     const createdAt = new Date(session.created_at);
     expiresAt = new Date(createdAt.getTime() + session.duration * 60000);
+  } else {
+    // افتراضياً 60 دقيقة
+    const createdAt = new Date(session.created_at);
+    expiresAt = new Date(createdAt.getTime() + 60 * 60000);
   }
   
   if (now > expiresAt) {
+    console.log(`Session expired: ${normalizedCode}`);
+    console.log(`Now: ${now.toISOString()}, Expires: ${expiresAt.toISOString()}`);
     return res.status(400).json({ error: "الجلسة غير موجودة أو منتهية" });
   }
 
   // التحقق من عدم تسجيل الحضور مسبقاً
   const attendance = loadJSON(db.attendance);
   const already = attendance.find(
-    (a) => a.studentId === studentId && a.sessionCode === sessionCode
+    (a) => a.studentId === studentId && a.sessionCode === normalizedCode
   );
-  if (already)
-    return res
-      .status(400)
-      .json({ error: "تم تسجيل الحضور مسبقًا لهذه الجلسة" });
+  
+  if (already) {
+    return res.status(400).json({ error: "تم تسجيل الحضور مسبقًا لهذه الجلسة" });
+  }
 
   // حفظ الطالب إذا لم يكن موجوداً
   const students = loadJSON(db.students);
@@ -181,11 +213,12 @@ app.post("/api/attendance/register", (req, res) => {
   attendance.push({
     studentId,
     name,
-    sessionCode,
+    sessionCode: normalizedCode,
     time: new Date().toISOString(),
   });
   saveJSON(db.attendance, attendance);
 
+  console.log(`Attendance registered: ${name} (${studentId}) for session ${normalizedCode}`);
   res.json({ message: "✅ تم تسجيل الحضور بنجاح" });
 });
 
@@ -251,6 +284,55 @@ app.post("/api/sessions/end/:code", (req, res) => {
   saveJSON(db.sessions, sessions);
   
   res.json({ message: "✅ تم إنهاء الجلسة" });
+});
+
+// ========================
+// معلومات التشخيص
+// ========================
+app.get("/api/debug/info", (req, res) => {
+  const sessions = loadJSON(db.sessions);
+  const students = loadJSON(db.students);
+  const attendance = loadJSON(db.attendance);
+  const now = new Date();
+  
+  const activeSessions = sessions.filter(session => {
+    let expiresAt;
+    if (session.expires_at) {
+      expiresAt = new Date(session.expires_at);
+    } else if (session.duration) {
+      const createdAt = new Date(session.created_at);
+      expiresAt = new Date(createdAt.getTime() + session.duration * 60000);
+    } else {
+      const createdAt = new Date(session.created_at);
+      expiresAt = new Date(createdAt.getTime() + 60 * 60000);
+    }
+    
+    return now <= expiresAt && session.is_active !== false && !session.ended_at;
+  });
+  
+  res.json({
+    server_time: now.toISOString(),
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    stats: {
+      total_sessions: sessions.length,
+      active_sessions: activeSessions.length,
+      total_students: students.length,
+      total_attendance: attendance.length
+    },
+    active_sessions: activeSessions.map(s => ({
+      code: s.code,
+      subject: s.subject,
+      room: s.room,
+      created_at: s.created_at,
+      expires_at: s.expires_at || "calculated from duration",
+      duration: s.duration
+    })),
+    recent_attendance: attendance.slice(-5).map(a => ({
+      student: a.name,
+      session: a.sessionCode,
+      time: a.time
+    }))
+  });
 });
 
 // ========================
