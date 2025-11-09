@@ -254,96 +254,81 @@
     </div>
     
     <div class="main-content">
-        <div class="tabs">
-            <button class="tab active" onclick="switchTab('scan')">📷 مسح الكود</button>
-            <button class="tab" onclick="switchTab('manual')">✏️ إدخال يدوي</button>
-            <button class="tab" onclick="switchTab('history')">📜 السجل</button>
-        </div>
-        
-        <!-- تبويب مسح الكود -->
-        <div id="scanTab" class="tab-content active">
-            <div class="card">
-                <h2>مسح رمز QR للحضور</h2>
+        <div class="card">
+            <div class="tabs">
+                <button class="tab active" onclick="switchTab('scan')">📷 مسح QR</button>
+                <button class="tab" onclick="switchTab('manual')">✍️ إدخال يدوي</button>
+            </div>
+            
+            <div id="scanTab" class="tab-content active">
+                <h2>مسح كود QR للحضور</h2>
                 
                 <div class="form-group">
-                    <label>اسم الطالب:</label>
-                    <input type="text" id="studentName" placeholder="أدخل اسمك الكامل">
+                    <label>اسمك:</label>
+                    <input type="text" id="studentName" placeholder="مثال: أحمد محمد">
                 </div>
                 
                 <div class="form-group">
-                    <label>رقم الطالب:</label>
-                    <input type="text" id="studentId" placeholder="أدخل رقمك الجامعي">
+                    <label>رقمك الجامعي:</label>
+                    <input type="text" id="studentId" placeholder="مثال: 202112345">
                 </div>
                 
-                <button class="btn" onclick="startScanner()" id="startBtn">بدء المسح 📷</button>
-                <button class="btn btn-secondary" onclick="stopScanner()" id="stopBtn" style="display: none;">إيقاف المسح</button>
+                <button class="btn" id="startBtn" onclick="startScanner()">
+                    بدء المسح 📸
+                </button>
+                
+                <button class="btn btn-secondary" id="stopBtn" style="display: none;" onclick="stopScanner()">
+                    إيقاف المسح
+                </button>
                 
                 <div id="reader"></div>
-                
                 <div id="scanResult"></div>
             </div>
-        </div>
-        
-        <!-- تبويب الإدخال اليدوي -->
-        <div id="manualTab" class="tab-content">
-            <div class="card">
+            
+            <div id="manualTab" class="tab-content">
                 <h2>إدخال رمز الجلسة يدوياً</h2>
                 
                 <div class="form-group">
-                    <label>اسم الطالب:</label>
-                    <input type="text" id="manualStudentName" placeholder="أدخل اسمك الكامل">
+                    <label>اسمك:</label>
+                    <input type="text" id="manualStudentName" placeholder="مثال: أحمد محمد">
                 </div>
                 
                 <div class="form-group">
-                    <label>رقم الطالب:</label>
-                    <input type="text" id="manualStudentId" placeholder="أدخل رقمك الجامعي">
+                    <label>رقمك الجامعي:</label>
+                    <input type="text" id="manualStudentId" placeholder="مثال: 202112345">
                 </div>
                 
                 <div class="form-group">
                     <label>رمز الجلسة:</label>
-                    <input type="text" id="sessionCode" placeholder="أدخل رمز الجلسة">
+                    <input type="text" id="sessionCode" placeholder="مثال: SABC123" style="text-transform: uppercase;">
                 </div>
                 
-                <button class="btn" onclick="submitManualAttendance()">تسجيل الحضور</button>
+                <button class="btn" onclick="submitManualAttendance()">
+                    تسجيل الحضور ✅
+                </button>
                 
                 <div id="manualResult"></div>
-            </div>
-        </div>
-        
-        <!-- تبويب السجل -->
-        <div id="historyTab" class="tab-content">
-            <div class="card">
-                <h2>سجل الحضور</h2>
-                <div id="attendanceHistory"></div>
             </div>
         </div>
     </div>
 
     <script>
+        const API_URL = 'http://localhost:3000/api';
         let html5QrcodeScanner = null;
 
         function switchTab(tab) {
-            // إخفاء جميع التبويبات
-            document.querySelectorAll('.tab-content').forEach(content => {
-                content.classList.remove('active');
-            });
+            const tabs = document.querySelectorAll('.tab');
+            const contents = document.querySelectorAll('.tab-content');
             
-            // إزالة active من جميع الأزرار
-            document.querySelectorAll('.tab').forEach(button => {
-                button.classList.remove('active');
-            });
+            tabs.forEach(t => t.classList.remove('active'));
+            contents.forEach(c => c.classList.remove('active'));
             
-            // إظهار التبويب المطلوب
             if (tab === 'scan') {
+                tabs[0].classList.add('active');
                 document.getElementById('scanTab').classList.add('active');
-                document.querySelectorAll('.tab')[0].classList.add('active');
-            } else if (tab === 'manual') {
+            } else {
+                tabs[1].classList.add('active');
                 document.getElementById('manualTab').classList.add('active');
-                document.querySelectorAll('.tab')[1].classList.add('active');
-            } else if (tab === 'history') {
-                document.getElementById('historyTab').classList.add('active');
-                document.querySelectorAll('.tab')[2].classList.add('active');
-                loadAttendanceHistory();
             }
         }
 
@@ -391,115 +376,85 @@
         }
 
         function onScanFailure(error) {
-            // يمكن تجاهل هذه الأخطاء لأنها تحدث عندما لا يكون هناك رمز QR في الإطار
+            // يمكن تجاهل هذه الأخطاء
         }
 
-        function registerAttendance(sessionData) {
+        async function registerAttendance(sessionData) {
             const studentName = document.getElementById('studentName').value;
             const studentId = document.getElementById('studentId').value;
             
-            // التحقق من وجود الجلسة
-            const currentSession = localStorage.getItem('currentSession');
-            if (!currentSession) {
-                showError('scanResult', 'الجلسة غير موجودة أو منتهية');
-                return;
+            try {
+                const checkResponse = await fetch(`${API_URL}/sessions/check/${sessionData.sessionCode}`);
+                const checkData = await checkResponse.json();
+                
+                if (!checkData.valid) {
+                    showError('scanResult', checkData.message || 'الجلسة غير موجودة أو منتهية');
+                    return;
+                }
+
+                const response = await fetch(`${API_URL}/attendance/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: studentName,
+                        studentId: studentId,
+                        sessionCode: sessionData.sessionCode
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showSuccess('scanResult', sessionData);
+                } else {
+                    showError('scanResult', data.error || 'فشل تسجيل الحضور');
+                }
+            } catch (error) {
+                console.error('خطأ في الاتصال:', error);
+                showError('scanResult', 'فشل الاتصال بالسيرفر');
             }
-            
-            const session = JSON.parse(currentSession);
-            if (session.code !== sessionData.sessionCode) {
-                showError('scanResult', 'رمز الجلسة غير صحيح');
-                return;
-            }
-            
-            // التحقق من عدم التسجيل المسبق
-            const attendanceKey = 'attendance_' + sessionData.sessionCode;
-            let attendance = JSON.parse(localStorage.getItem(attendanceKey) || '[]');
-            
-            if (attendance.find(a => a.studentId === studentId)) {
-                showError('scanResult', 'تم تسجيل حضورك مسبقاً في هذه الجلسة');
-                return;
-            }
-            
-            // تسجيل الحضور
-            const attendanceRecord = {
-                name: studentName,
-                studentId: studentId,
-                time: new Date().toISOString(),
-                subject: sessionData.subject,
-                room: sessionData.room
-            };
-            
-            attendance.push(attendanceRecord);
-            localStorage.setItem(attendanceKey, JSON.stringify(attendance));
-            
-            // حفظ في سجل الطالب
-            saveToStudentHistory(attendanceRecord, sessionData.sessionCode);
-            
-            // عرض رسالة النجاح
-            showSuccess('scanResult', sessionData);
         }
 
-        function submitManualAttendance() {
+        async function submitManualAttendance() {
             const studentName = document.getElementById('manualStudentName').value;
             const studentId = document.getElementById('manualStudentId').value;
-            const sessionCode = document.getElementById('sessionCode').value;
+            const sessionCode = document.getElementById('sessionCode').value.toUpperCase();
             
             if (!studentName || !studentId || !sessionCode) {
                 alert('الرجاء إدخال جميع البيانات المطلوبة');
                 return;
             }
             
-            // التحقق من وجود الجلسة
-            const currentSession = localStorage.getItem('currentSession');
-            if (!currentSession) {
-                showError('manualResult', 'الجلسة غير موجودة أو منتهية');
-                return;
-            }
-            
-            const session = JSON.parse(currentSession);
-            if (session.code !== sessionCode.toUpperCase()) {
-                showError('manualResult', 'رمز الجلسة غير صحيح');
-                return;
-            }
-            
-            // التحقق من عدم التسجيل المسبق
-            const attendanceKey = 'attendance_' + sessionCode.toUpperCase();
-            let attendance = JSON.parse(localStorage.getItem(attendanceKey) || '[]');
-            
-            if (attendance.find(a => a.studentId === studentId)) {
-                showError('manualResult', 'تم تسجيل حضورك مسبقاً في هذه الجلسة');
-                return;
-            }
-            
-            // تسجيل الحضور
-            const attendanceRecord = {
-                name: studentName,
-                studentId: studentId,
-                time: new Date().toISOString(),
-                subject: session.subject,
-                room: session.room
-            };
-            
-            attendance.push(attendanceRecord);
-            localStorage.setItem(attendanceKey, JSON.stringify(attendance));
-            
-            // حفظ في سجل الطالب
-            saveToStudentHistory(attendanceRecord, sessionCode.toUpperCase());
-            
-            // عرض رسالة النجاح
-            showSuccess('manualResult', session);
-        }
+            try {
+                const checkResponse = await fetch(`${API_URL}/sessions/check/${sessionCode}`);
+                const checkData = await checkResponse.json();
+                
+                if (!checkData.valid) {
+                    showError('manualResult', checkData.message || 'الجلسة غير موجودة أو منتهية');
+                    return;
+                }
 
-        function saveToStudentHistory(record, sessionCode) {
-            const historyKey = 'student_history_' + record.studentId;
-            let history = JSON.parse(localStorage.getItem(historyKey) || '[]');
-            
-            history.push({
-                ...record,
-                sessionCode: sessionCode
-            });
-            
-            localStorage.setItem(historyKey, JSON.stringify(history));
+                const response = await fetch(`${API_URL}/attendance/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: studentName,
+                        studentId: studentId,
+                        sessionCode: sessionCode
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showSuccess('manualResult', checkData.session);
+                } else {
+                    showError('manualResult', data.error || 'فشل تسجيل الحضور');
+                }
+            } catch (error) {
+                console.error('خطأ في الاتصال:', error);
+                showError('manualResult', 'فشل الاتصال بالسيرفر');
+            }
         }
 
         function showSuccess(elementId, sessionData) {
@@ -534,57 +489,6 @@
             `;
         }
 
-        function loadAttendanceHistory() {
-            const studentId = localStorage.getItem('lastStudentId') || 
-                           document.getElementById('studentId').value ||
-                           document.getElementById('manualStudentId').value;
-            
-            if (!studentId) {
-                document.getElementById('attendanceHistory').innerHTML = `
-                    <div class="empty-state">
-                        الرجاء إدخال رقمك الجامعي أولاً لعرض السجل
-                    </div>
-                `;
-                return;
-            }
-            
-            const historyKey = 'student_history_' + studentId;
-            const history = JSON.parse(localStorage.getItem(historyKey) || '[]');
-            
-            if (history.length === 0) {
-                document.getElementById('attendanceHistory').innerHTML = `
-                    <div class="empty-state">
-                        لا يوجد سجل حضور حتى الآن
-                    </div>
-                `;
-                return;
-            }
-            
-            // ترتيب السجل من الأحدث للأقدم
-            history.sort((a, b) => new Date(b.time) - new Date(a.time));
-            
-            document.getElementById('attendanceHistory').innerHTML = history.map(record => `
-                <div class="history-item">
-                    <div class="history-subject">${record.subject}</div>
-                    <div class="history-details">
-                        القاعة: ${record.room} | 
-                        التاريخ: ${new Date(record.time).toLocaleDateString('ar-SA')} | 
-                        الوقت: ${new Date(record.time).toLocaleTimeString('ar-SA')}
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        // حفظ رقم الطالب عند إدخاله
-        document.getElementById('studentId').addEventListener('change', function() {
-            localStorage.setItem('lastStudentId', this.value);
-        });
-        
-        document.getElementById('manualStudentId').addEventListener('change', function() {
-            localStorage.setItem('lastStudentId', this.value);
-        });
-
-        // تحميل رقم الطالب المحفوظ
         window.onload = function() {
             const lastStudentId = localStorage.getItem('lastStudentId');
             if (lastStudentId) {
@@ -592,6 +496,14 @@
                 document.getElementById('manualStudentId').value = lastStudentId;
             }
         }
+
+        document.getElementById('studentId').addEventListener('change', function() {
+            localStorage.setItem('lastStudentId', this.value);
+        });
+        
+        document.getElementById('manualStudentId').addEventListener('change', function() {
+            localStorage.setItem('lastStudentId', this.value);
+        });
     </script>
 </body>
 </html>
