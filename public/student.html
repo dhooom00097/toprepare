@@ -1,488 +1,106 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>تسجيل الحضور</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            -webkit-tap-highlight-color: transparent;
-        }
-        
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-        }
-        
-        .container {
-            background: white;
-            border-radius: 20px;
-            padding: 30px;
-            width: 100%;
-            max-width: 400px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-        }
-        
-        .tabs {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 30px;
-        }
-        
-        .tab {
-            flex: 1;
-            padding: 12px;
-            border: none;
-            background: #f0f0f0;
-            border-radius: 10px;
-            font-size: 16px;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-        
-        .tab.active {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }
-        
-        .tab-content {
-            display: none;
-        }
-        
-        .tab-content.active {
-            display: block;
-        }
-        
-        h2 {
-            text-align: center;
-            margin-bottom: 10px;
-            color: #333;
-        }
-        
-        .subtitle {
-            text-align: center;
-            color: #666;
-            margin-bottom: 25px;
-            font-size: 14px;
-        }
-        
-        .form-group {
-            margin-bottom: 20px;
-        }
-        
-        label {
-            display: block;
-            margin-bottom: 8px;
-            color: #555;
-            font-weight: 500;
-        }
-        
-        input {
-            width: 100%;
-            padding: 12px 15px;
-            border: 2px solid #e0e0e0;
-            border-radius: 10px;
-            font-size: 16px;
-            transition: all 0.3s;
-            -webkit-appearance: none;
-        }
-        
-        input:focus {
-            outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-        }
-        
-        button {
-            width: 100%;
-            padding: 15px;
-            border: none;
-            border-radius: 10px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            font-size: 18px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: transform 0.2s;
-            -webkit-appearance: none;
-        }
-        
-        button:active {
-            transform: scale(0.98);
-        }
-        
-        button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-        
-        .alert {
-            padding: 15px;
-            border-radius: 10px;
-            margin-top: 20px;
-            text-align: center;
-            animation: slideIn 0.3s ease;
-        }
-        
-        @keyframes slideIn {
-            from {
-                transform: translateY(-10px);
-                opacity: 0;
-            }
-            to {
-                transform: translateY(0);
-                opacity: 1;
-            }
-        }
-        
-        .alert-success {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-        
-        .alert-error {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-        
-        .alert-warning {
-            background: #fff3cd;
-            color: #856404;
-            border: 1px solid #ffeeba;
-        }
-        
-        .success-icon {
-            font-size: 50px;
-            margin-bottom: 15px;
-        }
-        
-        .session-info {
-            background: #f8f9fa;
-            padding: 15px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-        }
-        
-        .session-info h3 {
-            color: #495057;
-            margin-bottom: 10px;
-        }
-        
-        .session-info p {
-            color: #6c757d;
-            margin: 5px 0;
-        }
-        
-        .loading {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid rgba(255,255,255,.3);
-            border-radius: 50%;
-            border-top-color: white;
-            animation: spin 1s ease-in-out infinite;
-        }
-        
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-        
-        .debug-info {
-            background: #f0f0f0;
-            padding: 10px;
-            border-radius: 5px;
-            margin-top: 10px;
-            font-size: 12px;
-            color: #666;
-            font-family: monospace;
-            white-space: pre-wrap;
-            word-break: break-all;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <title>🎓 تسجيل حضور الطالب</title>
+  <style>
+    body {
+      font-family: 'Cairo', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: #333;
+    }
+    .card {
+      background: white;
+      border-radius: 15px;
+      padding: 30px;
+      width: 100%;
+      max-width: 400px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+      text-align: center;
+    }
+    input {
+      width: 100%;
+      padding: 12px;
+      margin: 10px 0;
+      border: 2px solid #e0e0e0;
+      border-radius: 10px;
+      font-size: 16px;
+    }
+    button {
+      width: 100%;
+      padding: 15px;
+      border: none;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      font-size: 18px;
+      cursor: pointer;
+    }
+    .alert {
+      margin-top: 15px;
+      padding: 10px;
+      border-radius: 10px;
+    }
+    .success { background: #d4edda; color: #155724; }
+    .error { background: #f8d7da; color: #721c24; }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <div class="tabs">
-            <button class="tab active" onclick="switchTab('register')">📝 السجل</button>
-            <button class="tab" onclick="switchTab('manual')">🔑 إدخال يدوي</button>
-            <button class="tab" onclick="switchTab('scan')">📷 مسح الكود</button>
-        </div>
-        
-        <!-- التسجيل -->
-        <div id="register-tab" class="tab-content active">
-            <h2>تسجيل حضور سريع</h2>
-            <p class="subtitle">أدخل بياناتك للتسجيل</p>
-            
-            <form id="quickRegisterForm">
-                <div class="form-group">
-                    <label>اسم الطالب:</label>
-                    <input type="text" id="quickName" required placeholder="أدخل اسمك الكامل">
-                </div>
-                
-                <div class="form-group">
-                    <label>رقم الطالب:</label>
-                    <input type="text" id="quickId" required placeholder="رقم الهوية أو الرقم الجامعي">
-                </div>
-                
-                <button type="submit">تسجيل الحضور</button>
-            </form>
-        </div>
-        
-        <!-- إدخال يدوي -->
-        <div id="manual-tab" class="tab-content">
-            <h2>إدخال رمز الجلسة يدوياً</h2>
-            <p class="subtitle">أدخل الرمز الذي حصلت عليه من المعلم</p>
-            
-            <form id="manualForm">
-                <div class="form-group">
-                    <label>اسم الطالب:</label>
-                    <input type="text" id="manualName" required placeholder="أدخل اسمك الكامل">
-                </div>
-                
-                <div class="form-group">
-                    <label>رقم الطالب:</label>
-                    <input type="text" id="manualId" required placeholder="رقم الهوية أو الرقم الجامعي">
-                </div>
-                
-                <div class="form-group">
-                    <label>رمز الجلسة:</label>
-                    <input type="text" id="sessionCode" required placeholder="مثال: SMHQXUMX3" style="text-transform: uppercase;">
-                </div>
-                
-                <button type="submit">تسجيل الحضور</button>
-            </form>
-        </div>
-        
-        <!-- مسح الكود -->
-        <div id="scan-tab" class="tab-content">
-            <h2>مسح رمز QR</h2>
-            <p class="subtitle">قم بمسح رمز QR المعروض في القاعة</p>
-            
-            <div style="text-align: center; padding: 40px 0;">
-                <p style="color: #999;">🚧 قيد التطوير</p>
-                <p style="color: #999; font-size: 14px; margin-top: 10px;">سيتم تفعيل هذه الميزة قريباً</p>
-            </div>
-        </div>
-        
-        <div id="message"></div>
-    </div>
-    
-    <script>
-        const API_URL = window.location.origin;
-        let currentSessionCode = null;
-        
-        // استخراج رمز الجلسة من URL
-        function getSessionFromURL() {
-            const params = new URLSearchParams(window.location.search);
-            const code = params.get('session');
-            if (code) {
-                currentSessionCode = code;
-                document.getElementById('sessionCode').value = code;
-                checkSession(code);
-            }
-        }
-        
-        // التحقق من الجلسة
-        async function checkSession(code) {
-            try {
-                const response = await fetch(`${API_URL}/api/sessions/check/${code}`);
-                const data = await response.json();
-                
-                if (!response.ok || !data.valid) {
-                    showMessage(`⚠️ ${data.message || 'الجلسة غير موجودة'}`, 'error');
-                    return false;
-                }
-                
-                // عرض معلومات الجلسة
-                const sessionInfo = `
-                    <div class="session-info">
-                        <h3>معلومات الجلسة</h3>
-                        <p>📚 المادة: ${data.session.subject}</p>
-                        <p>🏫 القاعة: ${data.session.room}</p>
-                        <p>🔑 الرمز: ${data.session.code}</p>
-                    </div>
-                `;
-                
-                const messageDiv = document.getElementById('message');
-                messageDiv.innerHTML = sessionInfo;
-                
-                return true;
-            } catch (error) {
-                console.error('Error checking session:', error);
-                showDebugInfo('Check Session Error', error);
-                return false;
-            }
-        }
-        
-        // تبديل التبويبات
-        function switchTab(tab) {
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-            
-            if (tab === 'register') {
-                document.querySelector('.tabs .tab:nth-child(1)').classList.add('active');
-                document.getElementById('register-tab').classList.add('active');
-            } else if (tab === 'manual') {
-                document.querySelector('.tabs .tab:nth-child(2)').classList.add('active');
-                document.getElementById('manual-tab').classList.add('active');
-            } else if (tab === 'scan') {
-                document.querySelector('.tabs .tab:nth-child(3)').classList.add('active');
-                document.getElementById('scan-tab').classList.add('active');
-            }
-        }
-        
-        // التسجيل السريع
-        document.getElementById('quickRegisterForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            if (!currentSessionCode) {
-                showMessage('⚠️ لا يوجد رمز جلسة. الرجاء استخدام التسجيل اليدوي', 'error');
-                return;
-            }
-            
-            const button = e.target.querySelector('button');
-            const originalText = button.innerHTML;
-            button.innerHTML = '<span class="loading"></span>';
-            button.disabled = true;
-            
-            const data = {
-                name: document.getElementById('quickName').value.trim(),
-                studentId: document.getElementById('quickId').value.trim(),
-                sessionCode: currentSessionCode
-            };
-            
-            try {
-                const response = await fetch(`${API_URL}/api/attendance/register`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
-                
-                const result = await response.json();
-                
-                if (!response.ok) {
-                    showMessage(`❌ ${result.error}`, 'error');
-                    showDebugInfo('Quick Register Error', { status: response.status, ...result });
-                } else {
-                    showSuccessMessage(result.message);
-                    e.target.reset();
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                showMessage('❌ حدث خطأ في الاتصال', 'error');
-                showDebugInfo('Network Error', error);
-            } finally {
-                button.innerHTML = originalText;
-                button.disabled = false;
-            }
-        });
-        
-        // التسجيل اليدوي
-        document.getElementById('manualForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const button = e.target.querySelector('button');
-            const originalText = button.innerHTML;
-            button.innerHTML = '<span class="loading"></span>';
-            button.disabled = true;
-            
-            const data = {
-                name: document.getElementById('manualName').value.trim(),
-                studentId: document.getElementById('manualId').value.trim(),
-                sessionCode: document.getElementById('sessionCode').value.trim().toUpperCase()
-            };
-            
-            try {
-                const response = await fetch(`${API_URL}/api/attendance/register`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
-                
-                const result = await response.json();
-                
-                if (!response.ok) {
-                    showMessage(`❌ ${result.error}`, 'error');
-                    showDebugInfo('Manual Register Error', { status: response.status, ...result });
-                } else {
-                    showSuccessMessage(result.message);
-                    e.target.reset();
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                showMessage('❌ حدث خطأ في الاتصال', 'error');
-                showDebugInfo('Network Error', error);
-            } finally {
-                button.innerHTML = originalText;
-                button.disabled = false;
-            }
-        });
-        
-        // عرض رسالة النجاح
-        function showSuccessMessage(message) {
-            const messageDiv = document.getElementById('message');
-            messageDiv.innerHTML = `
-                <div class="alert alert-success">
-                    <div class="success-icon">✅</div>
-                    <h3>تم تسجيل الحضور بنجاح!</h3>
-                    <p style="margin-top: 10px;">المادة: math101</p>
-                    <p>القاعة: 311</p>
-                    <p>الوقت: ${new Date().toLocaleTimeString('ar-SA')}</p>
-                </div>
-            `;
-        }
-        
-        // عرض الرسائل
-        function showMessage(message, type) {
-            const messageDiv = document.getElementById('message');
-            messageDiv.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
-            
-            if (type === 'success') {
-                setTimeout(() => {
-                    messageDiv.innerHTML = '';
-                }, 5000);
-            }
-        }
-        
-        // عرض معلومات التصحيح
-        function showDebugInfo(title, data) {
-            const messageDiv = document.getElementById('message');
-            const debugInfo = `
-                <div class="debug-info">
-                    <strong>Debug: ${title}</strong>
-                    ${JSON.stringify(data, null, 2)}
-                    <br>
-                    Time: ${new Date().toISOString()}
-                    <br>
-                    URL: ${API_URL}
-                    <br>
-                    Session: ${currentSessionCode || 'none'}
-                </div>
-            `;
-            messageDiv.innerHTML += debugInfo;
-        }
-        
-        // التحقق من رمز الجلسة عند التحميل
-        window.addEventListener('load', () => {
-            getSessionFromURL();
-        });
-        
-        // منع إعادة التحميل عند السحب
-        document.addEventListener('touchmove', function(e) {
-            if (e.touches.length > 1) {
-                e.preventDefault();
-            }
-        }, { passive: false });
-    </script>
+  <div class="card">
+    <h2>🎯 تسجيل الحضور</h2>
+    <p id="sessionInfo">جاري التحقق من الجلسة...</p>
+    <form id="attendanceForm" style="display:none;">
+      <input type="text" id="name" placeholder="اسم الطالب" required>
+      <input type="text" id="studentId" placeholder="الرقم الجامعي" required>
+      <button type="submit">تسجيل الحضور ✅</button>
+    </form>
+    <div id="message"></div>
+  </div>
+
+  <script>
+    const API_URL = window.location.origin;
+    const params = new URLSearchParams(window.location.search);
+    const sessionCode = params.get("session");
+
+    async function checkSession() {
+      if (!sessionCode) {
+        document.getElementById("sessionInfo").textContent = "❌ لم يتم العثور على رمز الجلسة";
+        return;
+      }
+      const res = await fetch(`${API_URL}/api/sessions/check/${sessionCode}`);
+      const data = await res.json();
+      if (!res.ok || !data.valid) {
+        document.getElementById("sessionInfo").textContent = `⚠️ ${data.message}`;
+        return;
+      }
+      document.getElementById("sessionInfo").innerHTML =
+        `📚 ${data.session.subject}<br>🏫 ${data.session.room}<br>🔑 الكود: ${data.session.code}`;
+      document.getElementById("attendanceForm").style.display = "block";
+    }
+
+    document.getElementById("attendanceForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const name = document.getElementById("name").value.trim();
+      const studentId = document.getElementById("studentId").value.trim();
+      const res = await fetch(`${API_URL}/api/attendance/register`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ name, studentId, sessionCode })
+      });
+      const data = await res.json();
+      const msg = document.getElementById("message");
+      if (!res.ok) msg.innerHTML = `<div class='alert error'>${data.error}</div>`;
+      else {
+        msg.innerHTML = `<div class='alert success'>${data.message}</div>`;
+        document.getElementById("attendanceForm").reset();
+      }
+    });
+
+    checkSession();
+  </script>
 </body>
 </html>
