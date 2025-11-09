@@ -7,7 +7,9 @@ const path = require("path");
 const app = express();
 app.use(cors());
 app.use(express.json());
-app.use(express.static(__dirname)); // يخدم صفحات HTML مباشرة
+
+// خدمة الملفات الثابتة من مجلد public
+app.use(express.static(path.join(__dirname, 'public')));
 
 // 🧠 تحميل الجلسات من sessions.json
 function loadSessions() {
@@ -106,6 +108,11 @@ app.post("/api/sessions/end/:code", (req, res) => {
   delete sessions[code];
   saveSessions(sessions);
   res.json({ message: "تم إنهاء الجلسة" });
+});
+
+// 🏠 الصفحة الرئيسية
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // 🌍 تشغيل السيرفر
